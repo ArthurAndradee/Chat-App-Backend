@@ -1,67 +1,41 @@
-import express from "express"
-import mongoose from 'mongoose';
-import bodyParser from 'body-parser';
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 
-const app = express()
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
 
-app.use(bodyParser.json());
+let users = {};
 
-mongoose.connect("mongodb://localhost:27017/ShoeStore", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
+app.use(express.static('client/build'));
 
-const db = mongoose.connection;
+io.on('connection', (socket) => {
+    console.log('New client connected');
 
-db.on('error', console.error.bind(console, 'connection error:'));
-db.once('open', () => {
-  console.log('Connected to the database');
+    socket.on('join', (username) => {
+        users[socket.id] = username;
+        socket.emit('users', Object.values(users));
+        socket.broadcast.emit('userJoined', username);
+    });
+
+    socket.on('privateMessage', (data) => {
+        const { recipient, message, sender } = data;
+        const recipientSocketId = Object.keys(users).find(key => users[key] === recipient);
+        if (recipientSocketId) {
+            const roomId = [socket.id, recipientSocketId].sort().join('-');
+            socket.join(roomId);
+            io.to(recipientSocketId).emit('receiveMessage', { message, sender, roomId });
+            io.to(socket.id).emit('receiveMessage', { message, sender: 'You', roomId });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Client disconnected');
+        const username = users[socket.id];
+        delete users[socket.id];
+        socket.broadcast.emit('userLeft', username);
+    });
 });
 
-const ProductSchema = new mongoose.Schema({
-    availableQuantity: Number,
-    catchPhrase: String,
-    category: [String],
-    discountedPrice: Number,
-    id: String,
-    imgAlt: String,
-    imgLink: String,
-    name: String,
-    price: Number,
-    productUrl: String,
-    productSize: String,
-    quantity: Number,
-    type: String,
-    variations: String,
-}, {collection : 'Products'})
-
-const ProductModel = mongoose.model("Products", ProductSchema)
-
-app.get("/getProducts", async (req, res) => {
-    try {
-        const data = await ProductModel.find()
-        res.json(data)
-    } catch (err) {
-        res.status(500).json({message: err.message})
-    }
-})
-
-const orderSchema = new mongoose.Schema({
-    payment: Object,
-    products: Object,
-    shippingAdress: Object,
-});
-
-const Order = mongoose.model('Order', orderSchema);
-
-app.post('/api/orders', async (req, res) => {
-    try {
-      const order = new Order(req.body);
-      await order.save();
-      res.status(201).send(order);
-    } catch (error) {
-      res.status(400).send(error);
-    }
-});
-
-app.listen(5000, () => console.log("Server is running"))
+server.listen(5000, () => console.log('Server is running on port 5000'));

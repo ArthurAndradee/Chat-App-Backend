@@ -30,9 +30,11 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const user = users[socket.id];
-        delete users[socket.id];
-        io.emit('users', Object.values(users));
-        socket.broadcast.emit('userLeft', user.username);
+        if (user) {
+            delete users[socket.id];
+            io.emit('users', Object.values(users));
+            socket.broadcast.emit('userLeft', user.username);
+        }
     });
 });
 

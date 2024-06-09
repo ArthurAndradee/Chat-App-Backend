@@ -13,28 +13,26 @@ app.use(express.static('client/build'));
 io.on('connection', (socket) => {
     console.log('New client connected');
 
-    socket.on('join', (username) => {
-        users[socket.id] = username;
-        socket.emit('users', Object.values(users));
-        socket.broadcast.emit('userJoined', username);
+    socket.on('join', (data) => {
+        const { username, profilePicture } = data;
+        users[socket.id] = { username, profilePicture };
+        io.emit('users', Object.values(users));
     });
 
     socket.on('privateMessage', (data) => {
-        const { recipient, message, sender } = data;
-        const recipientSocketId = Object.keys(users).find(key => users[key] === recipient);
+        const { recipient, message, sender, timestamp } = data;
+        const recipientSocketId = Object.keys(users).find(key => users[key].username === recipient);
         if (recipientSocketId) {
-            const roomId = [socket.id, recipientSocketId].sort().join('-');
-            socket.join(roomId);
-            io.to(recipientSocketId).emit('receiveMessage', { message, sender, roomId });
-            io.to(socket.id).emit('receiveMessage', { message, sender: 'You', roomId });
+            const roomId = [sender, recipient].sort().join('-');
+            io.to(recipientSocketId).emit('receiveMessage', { message, sender, roomId, timestamp });
         }
     });
 
     socket.on('disconnect', () => {
-        console.log('Client disconnected');
-        const username = users[socket.id];
+        const user = users[socket.id];
         delete users[socket.id];
-        socket.broadcast.emit('userLeft', username);
+        io.emit('users', Object.values(users));
+        socket.broadcast.emit('userLeft', user.username);
     });
 });
 

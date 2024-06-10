@@ -8,24 +8,20 @@ const io = socketIo(server);
 
 let users = {};
 
-app.use(express.static('client/build'));
-
-const getUsersList = () => {
-    return Object.values(users);
-};
+app.use(express.static('client/build'));    
 
 io.on('connection', (socket) => {
     console.log('New client connected');
 
     socket.on('getUsers', () => {
-        const usersList = getUsersList(); 
+        const usersList = Object.values(users); 
         socket.emit('users', usersList);
     });
 
     socket.on('join', (data) => {
         const { username, profilePicture } = data;
         users[socket.id] = { username, profilePicture };
-        io.emit('users', getUsersList());
+        io.emit('users', Object.values(users));
     });
 
     socket.on('privateMessage', (data) => {

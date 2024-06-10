@@ -10,13 +10,22 @@ let users = {};
 
 app.use(express.static('client/build'));
 
+const getUsersList = () => {
+    return Object.values(users);
+};
+
 io.on('connection', (socket) => {
     console.log('New client connected');
+
+    socket.on('getUsers', () => {
+        const usersList = getUsersList(); 
+        socket.emit('users', usersList);
+    });
 
     socket.on('join', (data) => {
         const { username, profilePicture } = data;
         users[socket.id] = { username, profilePicture };
-        io.emit('users', Object.values(users));
+        io.emit('users', getUsersList());
     });
 
     socket.on('privateMessage', (data) => {
@@ -32,7 +41,7 @@ io.on('connection', (socket) => {
         const user = users[socket.id];
         if (user) {
             delete users[socket.id];
-            io.emit('users', Object.values(users));
+            io.emit('users', getUsersList());
             socket.broadcast.emit('userLeft', user.username);
         }
     });

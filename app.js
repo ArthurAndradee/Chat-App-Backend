@@ -7,7 +7,6 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// MongoDB connection
 mongoose.connect('mongodb://localhost:27017/ChatApp', {
     useNewUrlParser: true,
     useUnifiedTopology: true
@@ -15,13 +14,11 @@ mongoose.connect('mongodb://localhost:27017/ChatApp', {
 
 const { Schema } = mongoose;
 
-// Define user schema
 const userSchema = new Schema({
     username: String,
-    profilePicture: Buffer // Or you can store the path to the profile picture
+    profilePicture: Buffer 
 });
 
-// Define message schema
 const messageSchema = new Schema({
     sender: String,
     recipient: String,
@@ -30,7 +27,6 @@ const messageSchema = new Schema({
     roomId: String
 });
 
-// Create models
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 

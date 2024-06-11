@@ -87,6 +87,7 @@ io.on('connection', (socket) => {
 
     socket.on('fetchMessages', async (roomId) => {
         try {
+            console.log("Loading messages...")
             const room = await Room.findOne({ roomId });
             const messages = room ? room.messages : [];
             socket.emit('loadMessages', messages);

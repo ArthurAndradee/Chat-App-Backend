@@ -15,19 +15,17 @@ mongoose.connect('mongodb://localhost:27017/ChatApp', {
 const { Schema } = mongoose;
 
 const userSchema = new Schema({
-    username: { type: String, unique: true },
-    profilePicture: Buffer 
-});
-
-const messageSchema = new Schema({
-    sender: String,
-    message: String,
-    timestamp: String
+    username: String,
+    profilePicture: Buffer
 });
 
 const roomSchema = new Schema({
     roomId: String,
-    messages: [messageSchema]
+    messages: [{
+        sender: String,
+        message: String,
+        timestamp: String
+    }]
 });
 
 const User = mongoose.model('User', userSchema);
@@ -45,55 +43,41 @@ io.on('connection', (socket) => {
         socket.emit('users', usersList);
     });
 
-    socket.on('join', async ({ username, profilePicture }) => {
-        if (users[socket.id] && users[socket.id].username === username) {
-            return;
-        }
-        
+    socket.on('join', async (data) => {
+        const { username, profilePicture } = data;
         users[socket.id] = { username, profilePicture };
         console.log(`User joined: ${username} with socket ID: ${socket.id}`);
 
-        const existingUser = await User.findOne({ username });
-        if (!existingUser) {
-            const user = new User({ username, profilePicture });
-            await user.save();
-        } else {
-            existingUser.profilePicture = profilePicture;
-            await existingUser.save();
-        }
+        const user = await User.findOneAndUpdate(
+            { username },
+            { username, profilePicture },
+            { upsert: true, new: true }
+        );
         io.emit('users', await User.find());
     });
 
     socket.on('privateMessage', async (data) => {
-        const { recipient, message, sender, timestamp } = data;
+        const { recipient, message, sender, timestamp, roomId } = data;
         console.log('Server received message:', data);
-        
-        const roomId = [sender, recipient].sort().join('-');
-        const messageData = { sender, message, timestamp };
-        
-        let room = await Room.findOne({ roomId });
-        if (!room) {
-            room = new Room({ roomId, messages: [messageData] });
-        } else {
-            room.messages.push(messageData);
-        }
-        await room.save();
 
+        const room = await Room.findOneAndUpdate(
+            { roomId },
+            { $push: { messages: { sender, message, timestamp } } },
+            { upsert: true, new: true }
+        );
         const recipientSocketId = Object.keys(users).find(key => users[key].username === recipient);
         if (recipientSocketId) {
-            io.to(recipientSocketId).emit('receiveMessage', { sender, message, roomId, timestamp });
+            io.to(recipientSocketId).emit('receiveMessage', JSON.stringify({ sender, message, roomId, timestamp }));
         }
     });
 
     socket.on('fetchMessages', async (roomId) => {
-        try {
-            const room = await Room.findOne({ roomId });
-            const messages = room ? room.messages : [];
-            console.log("Loading messages: " + messages)
-            console.log("Loading messages: " + JSON.stringify(messages))
-            socket.emit('loadMessages', messages);
-        } catch (error) {
-            console.error('Error fetching messages:', error);
+        const room = await Room.findOne({ roomId });
+        if (room) {
+            const messages = room.messages.map(({ sender, message, timestamp }) => ({ sender, message, timestamp, roomId }));
+            socket.emit('loadMessages', JSON.stringify(messages));
+        } else {
+            socket.emit('loadMessages', JSON.stringify([]));
         }
     });
 

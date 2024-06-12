@@ -16,7 +16,7 @@ const { Schema } = mongoose;
 
 const userSchema = new Schema({
     username: String,
-    profilePicture: Buffer
+    profilePicture: String,
 });
 
 const roomSchema = new Schema({

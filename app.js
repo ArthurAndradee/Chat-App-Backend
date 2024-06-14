@@ -54,12 +54,8 @@ io.on('connection', (socket) => {
             { upsert: true, new: true }
         );
     
-        // Emit updated list of online users to all connected clients
-        io.emit('users', await User.find());
-        // Broadcast that user has connected
-        io.emit('userConnected', username);
-    
-        // Send the current list of online users to the newly connected user
+        io.emit('users', await User.find());    
+
         socket.emit('onlineUsers', Object.values(users).map(user => user.username));
     });
     
@@ -68,7 +64,6 @@ io.on('connection', (socket) => {
         if (user) {
             delete users[socket.id];
             io.emit('users', await User.find());
-            io.emit('userDisconnected', user.username);
         }
     });
     

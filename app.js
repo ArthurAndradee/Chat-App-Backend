@@ -31,7 +31,7 @@ const roomSchema = new Schema({
 const User = mongoose.model('User', userSchema);
 const Room = mongoose.model('Room', roomSchema);
 
-const users = {};
+const users = {}; // Track connected users and their details
 
 app.use(express.static('client/build'));
 
@@ -47,14 +47,31 @@ io.on('connection', (socket) => {
         const { username, profilePicture } = data;
         users[socket.id] = { username, profilePicture };
         console.log(`User joined: ${username} with socket ID: ${socket.id}`);
-
+    
         const user = await User.findOneAndUpdate(
             { username },
             { username, profilePicture },
             { upsert: true, new: true }
         );
+    
+        // Emit updated list of online users to all connected clients
         io.emit('users', await User.find());
+        // Broadcast that user has connected
+        io.emit('userConnected', username);
+    
+        // Send the current list of online users to the newly connected user
+        socket.emit('onlineUsers', Object.values(users).map(user => user.username));
     });
+    
+    socket.on('disconnect', async () => {
+        const user = users[socket.id];
+        if (user) {
+            delete users[socket.id];
+            io.emit('users', await User.find());
+            io.emit('userDisconnected', user.username);
+        }
+    });
+    
 
     socket.on('privateMessage', async (data) => {
         const { recipient, message, sender, timestamp, roomId } = data;
@@ -78,15 +95,6 @@ io.on('connection', (socket) => {
             socket.emit('loadMessages', JSON.stringify(messages));
         } else {
             socket.emit('loadMessages', JSON.stringify([]));
-        }
-    });
-
-    socket.on('disconnect', async () => {
-        const user = users[socket.id];
-        if (user) {
-            delete users[socket.id];
-            io.emit('users', await User.find());
-            socket.broadcast.emit('userLeft', user.username);
         }
     });
 });
